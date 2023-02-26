@@ -6,12 +6,12 @@ import trimesh
 class NetVR:
 
     def __init__(self, nx_graph):
+        
         self.G = nx_graph
-        # self.n_objects = len(nx_obj.nodes()) useless?
         self.nodes = nx_graph.nodes(data=True)
         self.edges = nx_graph.edges(data=True)
-        # self.centers = []
         self.mesh = None
+        self.centers = None
     
     def _set_nodes_position(self, N, r, scale=50):
         points = np.zeros((N, 3))
