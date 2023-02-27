@@ -14,20 +14,72 @@ class NetVR:
         self.centers = None
     
     def _set_nodes_position(self, N, r, scale=50):
-        points = np.zeros((N, 3))
-        i = 0
-        box=r*scale # The box is 10 times the sphere radius
+        """
+        Description
+        -----------
+        Generate N points in space that are at least distant 2*r with each other. This is just a way
+        to create N non-overlapping spheres in a 3D space.
+
+        Parameters
+        ----------
+        N : int
+            Number of spheres to be represented.
+        r : float, list
+            Radius of each sphere. If a list is given, then the distances will vary accordingly.
+        scale : int
+            Scale factor that expands the dimension of the 3D space according to the maximum
+            radius value.
+
+        Returns
+        -------
+        points : numpy.array
+            Points coordinates array. Each row is a point, the columns are in order (x,y,z). 
+        """
+
+        points = np.zeros((N, 3)) # Coordinates initialization
+        box = 0 # 3D space dimension
         
+        # Check if r is already a list
+        if isinstance(r, list):
+            box=np.max(r)*scale
+        else:
+            box = r*scale
+            r = [r]*N
+
+        i = 0
         while i < N:
+            # Generate random point in the box
             point = box*np.random.rand(3)
 
-            if i == 0 or np.min(np.linalg.norm(points[:i,:] - point, axis=1)) >= 2*r:
+            # Check if the distance between the point and the rest is
+            if i == 0 or np.min(np.linalg.norm(points[:i,:] - point, axis=1)) >= (r[i]+np.max(r[:i-1])):
                 points[i,:] = point
                 i += 1
 
         return points
 
     def create_mesh_model(self, radius = 1.0, width = 0.05, path='network_model.obj', save=True, pos=None):
+        '''
+        Description
+        -----------
+        Generate a mesh of the network. This will create a 3D model of the network, each node and edge will be a group, while the
+        entire network is the object.
+
+        Parameters
+        ----------
+        radius : float, list, optional
+            Specify the radius of the spheres corresponding to the nodes. If the a list of radii is given, the nodes will be
+            resized accordingly.
+        width : float, list, optional
+            Specify the width of the edges. If the list of edges widths is given, all the links will be resized accordingly.
+        path : str, optional
+            Path where to save the .OBJ object.
+        save : bool, optional
+            Specify if export the .OBJ model.
+        pos : any, optional
+            Specify the nodes positions in space. If it is not given, the nodes will be placed randomly and won't overlapp
+            with each other.
+        '''
 
         if pos is None:
             self.centers = self._set_nodes_position(len(self.nodes), radius)
