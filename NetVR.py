@@ -3,6 +3,8 @@ import networkx as nx
 import os
 import trimesh
 
+# IDEAS: FREE FORM CURVES FOR NODES AND LINKS? - ste
+
 class NetVR:
 
     def __init__(self, nx_graph):
@@ -82,29 +84,40 @@ class NetVR:
             with each other.
         '''
 
+        # Check if the nodes sizes are given
+        if isinstance(radius, list):
+            pass
+        else:
+            radius = [radius]*len(self.nodes)
+
+        # Check if the position is given
         if pos is None:
             self.centers = self._set_nodes_position(len(self.nodes), radius)
-
         else:
             self.centers = pos
 
+        # Add position attribute to network
         mapp = {key:{k:v for (k,v) in zip(['x_pos','y_pos','z_pos'],[x_pos,y_pos,z_pos])} for 
                 (key,x_pos,y_pos,z_pos) in zip(self.G.nodes(), self.centers[:,0], self.centers[:,1], self.centers[:,2])}
         
         nx.set_node_attributes(self.G, mapp)
-        del mapp
 
+        del mapp # Free space
+
+        # Create .OBJ file
         with open(path, 'w') as f:
-
+            
+            f.write('# Generated with NetVR https://github.com/Stefano314/NetVR \n\n')
+            
             ind_obj = 1 # Node number
             ind_edges = 1 # Edge number
             n_vertices = 0 # Number of vertices in the mesh
 
-            f.write(f'o {path[:-4]}\n')
-            for point in self.centers:
+            f.write(f'o {path[:-4]}\n') # Object name
+            for point, r in zip(self.centers, radius):
 
                 # Create spheres as nodes
-                sphere = trimesh.primitives.Sphere(radius=radius, center=[point[0],point[1],point[2]], subdivisions=0)
+                sphere = trimesh.primitives.Sphere(radius=r, center=[point[0],point[1],point[2]], subdivisions=0)
                 
                 f.write(f"g node {ind_obj}\n")
 
