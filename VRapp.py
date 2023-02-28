@@ -24,7 +24,7 @@ class NetVR:
         ----------
         N : int
             Number of spheres to be represented.
-        r : float, list
+        r : float, np.array
             Radius of each sphere. If a list is given, then the distances will vary accordingly.
         scale : int
             Scale factor that expands the dimension of the 3D space according to the maximum
@@ -40,7 +40,7 @@ class NetVR:
         box = 0 # 3D space dimension
         
         # Check if r is already a list
-        if isinstance(r, list):
+        if isinstance(r, np.ndarray):
             box=np.max(r)*scale
         else:
             box = r*scale
@@ -52,7 +52,8 @@ class NetVR:
             point = box*np.random.rand(3)
 
             # Check if the distance between the point and the rest is
-            if i == 0 or np.min(np.linalg.norm(points[:i,:] - point, axis=1)) >= (r[i]+np.max(r[:i-1])):
+            if i == 0 or np.min(np.linalg.norm(points[:i,:] - point, axis=1)) >= (r[i]+np.max(r[:i])):
+
                 points[i,:] = point
                 i += 1
 
