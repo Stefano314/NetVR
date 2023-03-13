@@ -3,11 +3,31 @@ import networkx as nx
 import os
 import trimesh
 
-# IDEAS: FREE FORM CURVES FOR NODES AND LINKS? - ste
+# Directions with all the diagonals
+directions = [(0, 0, 1), (0, 0, -1), (0, 1, 0), (0, -1, 0), (1, 0, 0), 
+              (-1, 0, 0), (1, 1, 0), (1, -1, 0), (-1, 1, 0), (-1, -1, 0),
+              (1, 0, 1), (1, 0, -1), (-1, 0, 1), (-1, 0, -1),
+              (0, 1, 1), (0, 1, -1), (0, -1, 1), (0, -1, -1),
+              (1, 1, 1), (1, 1, -1), (1, -1, 1), (1, -1, -1),
+              (-1, 1, 1), (-1, 1, -1), (-1, -1, 1), (-1, -1, -1)]
 
 def is_valid_index(index, A):
     return all(0 <= i < A.shape[0] for i in index)
     
+def undirected_edges(edgelist):
+    reversed_edges = {}
+    undirected_edgelist = []
+
+    for edge in edgelist:
+        reversed_edge = (edge[1], edge[0])
+        if reversed_edge in reversed_edges:
+            continue
+        else:
+            reversed_edges[reversed_edge] = True
+            undirected_edgelist.append(edge)
+
+    return undirected_edgelist
+
 def _set_nodes_position(N, r, scale=50):
     """
     Description
@@ -47,27 +67,46 @@ def _set_nodes_position(N, r, scale=50):
             i += 1
     return points
 
-def array_mask_mesh(A : np.ndarray, radius=1., width=0.05, edges = False, path : str='test.obj', volume='cube'):
+def array_mask_mesh(A : np.ndarray, radius=1., width=0.05, edges = False, 
+                    n_category=None, path : str='test.obj', volume='cube'):
     """
     Create a 3D object of a (N,M,L) array mask.
     If volume = 'cube', edges=False and radius=1, then the boxes will share faces, producing a real volume mask,
     but it's harder to understand visually.
     """
+    # Create volumes even for 1D and 2D arrays
+    if len(A.shape) == 2:
+        new = np.zeros((A.shape[0],A.shape[1],2))
+        new[:,:,0]=A
+        A=new
+        del new
+        
+    if len(A.shape) == 1:
+        new = np.zeros((A.shape[0],2,2))
+        new[:,0,0]=A
+        A=new
+        del new
+
     centers = np.argwhere(A)
     radius = [radius]*centers.shape[0]
     
     mesh = None
 
+    # All elements are the same if not specified
+    # !No edges category, since in this case the edges are surfaces!
+    if n_category is None:
+        n_category = [None]*len(centers)
+    prev_cat = None
+
     with open(path, 'w') as f:
-                
+        
         f.write('# Generated with NetVR https://github.com/Stefano314/NetVR \n\n')
         
-        ind_obj = 1 # Node number
         ind_edges = 1 # Edge number
         n_vertices = 0 # Number of vertices in the mesh
 
         f.write(f'o {path[:-4]}\n') # Object name
-        for point, r in zip(centers, radius):
+        for point, r, ind_obj in zip(centers, radius, n_category):
             
             # Create spheres as nodes
             if volume == 'cube':
@@ -80,7 +119,10 @@ def array_mask_mesh(A : np.ndarray, radius=1., width=0.05, edges = False, path :
             elif volume == 'sphere':
                 mesh = trimesh.primitives.Sphere(radius=r, center=[point[0],point[1],point[2]], subdivisions=0)
 
-            f.write(f"g node {ind_obj}\n")
+            if ind_obj != prev_cat:# Write only new categories
+                f.write(f"g node {ind_obj}\n")
+
+            prev_cat = ind_obj
 
             for row in mesh.vertices:
                 f.write(f"v {np.round(row[0],5)} {np.round(row[1],5)} {np.round(row[2],5)}\n")
@@ -99,17 +141,22 @@ def array_mask_mesh(A : np.ndarray, radius=1., width=0.05, edges = False, path :
             
             for index in centers:
                 starting_index = np.where(np.all(centers==list(index), axis=1))[0][0]
-                for offset in [(0, 0, 1), (0, 0, -1), (0, 1, 0), (0, -1, 0), (1, 0, 0), (-1, 0, 0)]:
+                # for offset in [(0, 0, 1), (0, 0, -1), (0, 1, 0), (0, -1, 0), (1, 0, 0), (-1, 0, 0)]:# No diag
+                for offset in directions:# With diag
+
                     adjacent_index = tuple(index + offset)
                     if is_valid_index(adjacent_index, A) and A[adjacent_index]:
                         edgelist.append((starting_index, np.where(np.all(centers==list(adjacent_index), axis=1))[0][0]))
+
+            edgelist = undirected_edges(edgelist) # Keep it undirected (waaaay lighter obj)
 
             # edgelist = [(e[0]-1,e[1]-1) for e in edgelist] # In case we don't start from zero position
             for e in edgelist:
                 
                 line = trimesh.creation.cylinder(radius=width, segment=[centers[e[0]],centers[e[1]]], sections=4)
-            
-                f.write(f'g edge {ind_edges}\n')
+
+                if ind_edges == 1: # Create only one edge group for the moment
+                    f.write(f'g edge {ind_edges}\n')
                 
                 for row in line.vertices:
                     f.write(f"v {np.round(row[0],5)} {np.round(row[1],5)} {np.round(row[2],5)}\n")
@@ -197,17 +244,6 @@ def create_mesh_model(nodes, G, radius = 1.0, width = 0.05, path='network_model.
     # Delete file if not required
     if not save:
         os.remove(path)
-
-
-import pandas as pd
-
-df =pd.read_csv('test_edgelist.csv')
-
-df['type'] = 0
-df['type'][:300] = 'type1'
-df['type'][300:] = 'type2'
-df = df[['source', 'target', 'number_of_fibers', 'type']]
-df.to_csv('test_edgelist_types.csv', header=True, index=False)
 
 def read_coordinates(path : str, header = True):
     a = []
